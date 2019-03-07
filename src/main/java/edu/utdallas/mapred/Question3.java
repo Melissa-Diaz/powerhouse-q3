@@ -78,8 +78,10 @@ public class Question3 {
         Configuration conf = new Configuration();
         /* set this up so I could run in IDE and now have to jar it up and run hadoop <jar> blah blahA */
 
+        /*
         conf.addResource(new Path("/usr/local/Cellar/hadoop/3.1.1/libexec/etc/hadoop/core-site.xml"));
         conf.addResource(new Path("/usr/local/Cellar/hadoop/3.1.1/libexec/etc/hadoop/mapred-site.xml"));
+        */
 
 
         /* do not feel like removing the output file every time this is run */
