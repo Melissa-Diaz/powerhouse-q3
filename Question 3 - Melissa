@@ -1,0 +1,104 @@
+import java.io.IOException;
+import java.util.Map.Entry;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import org.apache.commons.math3.util.Precision;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.mapreduce.lib.input.MultipleInputs;
+
+
+public class Question3 {
+    public static class BusinessMapper extends Mapper<LongWritable, Text, Text, Text> {
+
+        public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            //read line doc
+            //business.csv has 3 columns - business ID, address, categories
+            String line = value.toString();
+            String[] item = line.split("::");
+            context.write(new Text(item[0]), new Text("Business: " + item[1] + ":" + item[2]));
+            }
+        }
+
+    public static class ReviewsMapper extends Mapper<LongWritable, Text, Text, Text> {
+        public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            //read line doc
+            //review.csv has 3 columns - review ID, user ID, business ID, stars
+            String line = value.toString();
+            String[] item = line.split("::");
+
+            context.write(new Text(item[2]), new Text("Review: " + item[3]));
+        }
+    }
+
+    public static class BusinessReviewReducer extends Reducer<Text, Text, Text, Text> {
+
+        private TreeMap<Double, String> topMap = new TreeMap<>();
+        public void reduce(Text key, Iterable<Text> values, Context context)
+                throws IOException, InterruptedException {
+
+            String businessInfo = "";
+            double sum = 0.0;
+            int count = 0;
+            double revAvg = 0.0;
+
+            for (Text info : values) {
+                String[] indvalue = info.toString().split(":");
+                if (indvalue[0].equals("Business")) {
+                    businessInfo = key + ", " + indvalue[1] + ", " + indvalue[2];
+                } else if (indvalue[0].equals("Review")) {
+                    sum += Double.valueOf(indvalue[1]);
+                    count++;
+                }
+            }
+
+            revAvg = sum / count;
+            topMap.put(revAvg, businessInfo);
+
+        }
+
+        protected void cleanup(Context context) throws IOException, InterruptedException {
+            int topten = 1;
+
+
+            NavigableMap<Double, String> tenMap = topMap.descendingMap();
+
+            for (Entry<Double, String> entry : tenMap.entrySet()) {
+                if (topten >= 11) break;
+                context.write(new Text(entry.getValue()), new Text(String.valueOf(Precision.round(entry.getKey(), 2))));
+                System.out.println(entry.getKey());
+                topten++;
+            }
+
+        }
+
+        }
+
+    // Driver program
+    public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {
+        Configuration conf = new Configuration();
+
+        // create a job
+        Job job = new Job(conf, "Business_Reviews");
+        job.setJarByClass(Question3.class);
+        job.setReducerClass(BusinessReviewReducer.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(Text.class);
+        MultipleInputs.addInputPath(job, new Path(args[0]), TextInputFormat.class, BusinessMapper.class);
+        MultipleInputs.addInputPath(job, new Path(args[1]), TextInputFormat.class, ReviewsMapper.class);
+        // set the HDFS path for the output
+        //FileOutputFormat.setOutputPath(job, new Path(args[2]));
+        FileOutputFormat.setOutputPath(job, new Path(args[2]));
+        // Wait till job completion
+        System.exit(job.waitForCompletion(true) ? 0 : 1);
+    }
+
+}
+
